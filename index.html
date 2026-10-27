@@ -1,0 +1,277 @@
+<!doctype html>
+<html lang="et">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Elutoa elektronkell</title>
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=VT323&display=swap">
+<style>
+/* Layout: one centred column. Big seven-segment time, one line of amber date beneath it.
+   Single dark look by choice: a warm-black wall clock, no light theme. */
+:root {
+  --bg: #0a0603;
+  --ghost: #1e1407;
+  --lit: #ffab1a;
+  --date: #e8941a;
+  --glow: rgba(255, 140, 0, 0.55);
+  --font-date: 'VT323', 'Courier New', monospace;
+  color-scheme: dark;
+}
+html { background: var(--bg); height: 100%; }
+body {
+  margin: 0;
+  height: 100%;
+  box-sizing: border-box;
+  background: var(--bg);
+  color: var(--lit);
+  padding-top: 0;
+  padding-bottom: 0;
+  padding-left: 16px;
+  padding-left: max(16px, env(safe-area-inset-left, 0px));
+  padding-right: 16px;
+  padding-right: max(16px, env(safe-area-inset-right, 0px));
+  overflow-x: hidden;
+  -webkit-text-size-adjust: 100%;
+  -webkit-user-select: none;
+  user-select: none;
+}
+.clock {
+  height: 100%;
+  box-sizing: border-box;
+  padding: 4vmin 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+}
+.time {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 29vw;
+  line-height: 1;
+}
+.time svg.digit {
+  display: block;
+  flex: none;
+  width: 0.64em;
+  height: 1em;
+  margin: 0 0.02em;
+  overflow: visible;
+}
+.colon {
+  position: relative;
+  flex: none;
+  width: 0.24em;
+  height: 1em;
+  margin: 0 0.02em;
+}
+.colon svg {
+  position: absolute;
+  left: 0;
+  top: 0;
+  width: 100%;
+  height: 100%;
+  display: block;
+  overflow: visible;
+}
+.colon svg.on { animation: blink 2s step-end infinite; }
+@keyframes blink {
+  0% { opacity: 1; }
+  50% { opacity: 0; }
+}
+.g { fill: var(--ghost); }
+.l { fill: var(--lit); }
+
+.date {
+  margin-top: 4vmin;
+  font-family: var(--font-date);
+  font-size: 6.2vw;
+  line-height: 1.1;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  text-align: center;
+  color: var(--date);
+  text-shadow: 0 0 0.3em var(--glow);
+}
+.date span { white-space: nowrap; }
+.sep {
+  display: inline-block;
+  width: 0.3em;
+  height: 0.3em;
+  margin: 0 0.7em;
+  vertical-align: middle;
+  background: var(--lit);
+  box-shadow: 0 0 0.35em var(--glow);
+}
+
+@media (min-aspect-ratio: 2/1) {
+  .time { font-size: 56vh; }
+  .date { font-size: 9vh; }
+}
+@media (max-width: 520px) {
+  .sep { display: none; }
+  .date span { display: block; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .colon svg.on { animation: none; }
+}
+</style>
+</head>
+<body>
+
+<svg width="0" height="0" style="position:absolute" aria-hidden="true" focusable="false">
+  <defs>
+    <filter id="glow" filterUnits="userSpaceOnUse" x="-25" y="-25" width="110" height="150" color-interpolation-filters="sRGB">
+      <feGaussianBlur in="SourceGraphic" stdDeviation="2" result="near"/>
+      <feGaussianBlur in="SourceGraphic" stdDeviation="6" result="far"/>
+      <feMerge>
+        <feMergeNode in="far"/>
+        <feMergeNode in="near"/>
+        <feMergeNode in="SourceGraphic"/>
+      </feMerge>
+    </filter>
+  </defs>
+</svg>
+
+<main class="clock">
+  <div class="time" id="time" role="img" aria-label="Kell"></div>
+  <div class="date" id="date"><span id="wd"></span><span class="sep" aria-hidden="true"></span><span id="dm"></span></div>
+</main>
+
+<script>
+(function () {
+  'use strict';
+  var NS = 'http://www.w3.org/2000/svg';
+  var D = 1.5; // gap between neighbouring segments
+
+  // Segment outlines: a digit is 56 wide and 100 tall, segments are 10 thick.
+  function hx(x1, x2, y) {
+    return [x1, y, x1 + 5, y - 5, x2 - 5, y - 5, x2, y, x2 - 5, y + 5, x1 + 5, y + 5].join(' ');
+  }
+  function vy(x, y1, y2) {
+    return [x, y1, x + 5, y1 + 5, x + 5, y2 - 5, x, y2, x - 5, y2 - 5, x - 5, y1 + 5].join(' ');
+  }
+  var SEG = {
+    a: hx(5 + D, 51 - D, 5),
+    b: vy(51, 5 + D, 50 - D),
+    c: vy(51, 50 + D, 95 - D),
+    d: hx(5 + D, 51 - D, 95),
+    e: vy(5, 50 + D, 95 - D),
+    f: vy(5, 5 + D, 50 - D),
+    g: hx(5 + D, 51 - D, 50)
+  };
+  var NAMES = ['a', 'b', 'c', 'd', 'e', 'f', 'g'];
+  var MAP = ['abcdef', 'bc', 'abdeg', 'abcdg', 'bcfg', 'acdfg', 'acdefg', 'abc', 'abcdefg', 'abcdfg'];
+  var WD = ['pühapäev', 'esmaspäev', 'teisipäev', 'kolmapäev', 'neljapäev', 'reede', 'laupäev'];
+  var MO = ['jaanuar', 'veebruar', 'märts', 'aprill', 'mai', 'juuni', 'juuli', 'august', 'september', 'oktoober', 'november', 'detsember'];
+
+  function el(name, attrs, parent) {
+    var n = document.createElementNS(NS, name);
+    for (var k in attrs) {
+      if (attrs.hasOwnProperty(k)) { n.setAttribute(k, attrs[k]); }
+    }
+    if (parent) { parent.appendChild(n); }
+    return n;
+  }
+
+  function makeDigit(host) {
+    var svg = el('svg', { viewBox: '0 0 64 100', 'class': 'digit', 'aria-hidden': 'true' }, host);
+    var slant = el('g', { transform: 'translate(7 0) skewX(-4)' }, svg);
+    var ghost = el('g', {}, slant);
+    var lit = el('g', { filter: 'url(#glow)' }, slant);
+    var segs = {};
+    for (var i = 0; i < NAMES.length; i++) {
+      var n = NAMES[i];
+      el('polygon', { points: SEG[n], 'class': 'g' }, ghost);
+      segs[n] = el('polygon', { points: SEG[n], 'class': 'l' }, lit);
+    }
+    return segs;
+  }
+
+  function makeColon(host) {
+    var wrap = document.createElement('span');
+    wrap.className = 'colon';
+    host.appendChild(wrap);
+    var on = null;
+    for (var i = 0; i < 2; i++) {
+      var svg = el('svg', { viewBox: '0 0 24 100', 'aria-hidden': 'true', 'class': i ? 'on' : 'off' }, wrap);
+      var slant = el('g', { transform: 'translate(7 0) skewX(-4)' }, svg);
+      var g = i ? el('g', { filter: 'url(#glow)' }, slant) : slant;
+      el('rect', { x: 4, y: 22, width: 10, height: 10, 'class': i ? 'l' : 'g' }, g);
+      el('rect', { x: 4, y: 68, width: 10, height: 10, 'class': i ? 'l' : 'g' }, g);
+      if (i) { on = svg; }
+    }
+    return on;
+  }
+
+  function setDigit(segs, n) {
+    for (var i = 0; i < NAMES.length; i++) {
+      var name = NAMES[i];
+      segs[name].setAttribute('visibility', MAP[n].indexOf(name) > -1 ? 'visible' : 'hidden');
+    }
+  }
+
+  function pad(n) { return n < 10 ? '0' + n : '' + n; }
+
+  var timeEl = document.getElementById('time');
+  var wdEl = document.getElementById('wd');
+  var dmEl = document.getElementById('dm');
+  var digits = [];
+  digits.push(makeDigit(timeEl));
+  digits.push(makeDigit(timeEl));
+  var colonOn = makeColon(timeEl);
+  digits.push(makeDigit(timeEl));
+  digits.push(makeDigit(timeEl));
+
+  // Start the colon blink in step with the real seconds.
+  var delay = '-' + ((Date.now() % 2000) / 1000) + 's';
+  colonOn.style.webkitAnimationDelay = delay;
+  colonOn.style.animationDelay = delay;
+
+  var lastTime = '';
+  var lastDay = '';
+
+  function render() {
+    var d = new Date();
+    var t = pad(d.getHours()) + pad(d.getMinutes());
+    var key = d.getFullYear() + '-' + d.getMonth() + '-' + d.getDate();
+    var changed = false;
+    if (t !== lastTime) {
+      lastTime = t;
+      for (var i = 0; i < 4; i++) { setDigit(digits[i], parseInt(t.charAt(i), 10)); }
+      changed = true;
+    }
+    if (key !== lastDay) {
+      lastDay = key;
+      wdEl.textContent = WD[d.getDay()];
+      dmEl.textContent = d.getDate() + '. ' + MO[d.getMonth()];
+      changed = true;
+    }
+    if (changed) {
+      timeEl.setAttribute('aria-label', t.substr(0, 2) + ':' + t.substr(2, 2) + ', ' + wdEl.textContent + ' ' + dmEl.textContent);
+    }
+  }
+
+  render();
+  setInterval(render, 1000);
+  document.addEventListener('visibilitychange', render);
+  window.addEventListener('pageshow', render);
+
+  // Keeps the screen awake where the browser allows it; older iPads simply ignore this.
+  function keepAwake() {
+    try {
+      if (navigator.wakeLock && document.visibilityState === 'visible') {
+        navigator.wakeLock.request('screen').catch(function () {});
+      }
+    } catch (e) {}
+  }
+  keepAwake();
+  document.addEventListener('visibilitychange', keepAwake);
+})();
+</script>
+
+</body>
+</html>
