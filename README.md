@@ -1,0 +1,1 @@
+# iPad-12-Mini-kell
