@@ -11,11 +11,11 @@
 /* Layout: one centred column. Big seven-segment time, one line of amber date beneath it.
    Single dark look by choice: a warm-black wall clock, no light theme. */
 :root {
-  --bg: #0a0603;
-  --ghost: #1e1407;
-  --lit: #ffab1a;
-  --date: #e8941a;
-  --glow: rgba(255, 140, 0, 0.55);
+  --bg: #020603;
+  --ghost: #0a1c10;
+  --lit: #3dff6e;
+  --date: #2fd35a;
+  --glow: rgba(40, 255, 90, 0.5);
   --font-date: 'VT323', 'Courier New', monospace;
   color-scheme: dark;
 }
@@ -36,6 +36,8 @@ body {
   -webkit-text-size-adjust: 100%;
   -webkit-user-select: none;
   user-select: none;
+  -webkit-tap-highlight-color: transparent;
+  cursor: pointer;
 }
 .clock {
   height: 100%;
@@ -107,6 +109,45 @@ body {
   box-shadow: 0 0 0.35em var(--glow);
 }
 
+/* Colour themes. Green is the default set in :root above; a tap on the clock cycles through these. */
+:root[data-tema="amber"] {
+  --bg: #0a0603;
+  --ghost: #1e1407;
+  --lit: #ffab1a;
+  --date: #e8941a;
+  --glow: rgba(255, 140, 0, 0.55);
+}
+:root[data-tema="punane"] {
+  --bg: #080202;
+  --ghost: #1d0808;
+  --lit: #ff3a2a;
+  --date: #d92e20;
+  --glow: rgba(255, 40, 25, 0.55);
+}
+:root[data-tema="sinine"] {
+  --bg: #03070b;
+  --ghost: #0a151e;
+  --lit: #7fd8ff;
+  --date: #5db3d8;
+  --glow: rgba(70, 190, 255, 0.5);
+}
+.toast {
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: 4vmin;
+  text-align: center;
+  font-family: var(--font-date);
+  font-size: 4.5vw;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--date);
+  text-shadow: 0 0 0.3em var(--glow);
+  opacity: 0;
+  transition: opacity 0.4s;
+  pointer-events: none;
+}
+
 @media (min-aspect-ratio: 2/1) {
   .time { font-size: 56vh; }
   .date { font-size: 9vh; }
@@ -140,6 +181,7 @@ body {
   <div class="time" id="time" role="img" aria-label="Kell"></div>
   <div class="date" id="date"><span id="wd"></span><span class="sep" aria-hidden="true"></span><span id="dm"></span></div>
 </main>
+<div class="toast" id="toast" role="status" aria-live="polite"></div>
 
 <script>
 (function () {
@@ -259,6 +301,41 @@ body {
   setInterval(render, 1000);
   document.addEventListener('visibilitychange', render);
   window.addEventListener('pageshow', render);
+
+  // Tap anywhere to cycle the colour; the choice is remembered on this device.
+  var THEMES = [
+    { id: 'roheline', name: 'Roheline' },
+    { id: 'amber', name: 'Kollakasoranž' },
+    { id: 'punane', name: 'Punane' },
+    { id: 'sinine', name: 'Jäänsinine' }
+  ];
+  var KEY = 'elektronkell-varv';
+  var toastEl = document.getElementById('toast');
+  var toastTimer = null;
+  var current = 0;
+
+  function themeIndex(id) {
+    for (var i = 0; i < THEMES.length; i++) {
+      if (THEMES[i].id === id) { return i; }
+    }
+    return 0;
+  }
+  function applyTheme(i) {
+    document.documentElement.setAttribute('data-tema', THEMES[i].id);
+  }
+
+  try { current = themeIndex(localStorage.getItem(KEY)); } catch (e) {}
+  applyTheme(current);
+
+  document.body.addEventListener('click', function () {
+    current = (current + 1) % THEMES.length;
+    applyTheme(current);
+    try { localStorage.setItem(KEY, THEMES[current].id); } catch (e) {}
+    toastEl.textContent = THEMES[current].name;
+    toastEl.style.opacity = '1';
+    clearTimeout(toastTimer);
+    toastTimer = setTimeout(function () { toastEl.style.opacity = '0'; }, 1600);
+  });
 
   // Keeps the screen awake where the browser allows it; older iPads simply ignore this.
   function keepAwake() {
